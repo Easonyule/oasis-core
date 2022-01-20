@@ -20,6 +20,10 @@ type Scheduler interface {
 	// GetBatch returns a batch of scheduled transactions (if any is available).
 	GetBatch(force bool) []*transaction.CheckedTransaction
 
+	// GetPrioritizedBatch returns a batch of transactions ordered by priority but without taking
+	// any weight limits into account.
+	GetPrioritizedBatch(offset, limit uint32) []*transaction.CheckedTransaction
+
 	// GetKnownBatch gets a set of known transactions from the transaction pool.
 	//
 	// For any missing transactions nil will be returned in their place and the map of missing

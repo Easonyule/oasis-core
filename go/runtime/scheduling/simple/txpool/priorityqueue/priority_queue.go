@@ -188,6 +188,49 @@ func (q *priorityQueue) removeTxsLocked(items []*item) {
 }
 
 // Implements api.TxPool.
+func (q *priorityQueue) GetPrioritizedBatch(offset, limit uint32) []*transaction.CheckedTransaction {
+	q.Lock()
+	defer q.Unlock()
+
+	var (
+		batch []*transaction.CheckedTransaction
+		index uint32
+	)
+	toRemove := []*item{}
+	q.priorityIndex.Descend(func(i btree.Item) bool {
+		index++
+		if index <= offset {
+			return true
+		}
+
+		item := i.(*item)
+
+		for w, limit := range q.weightLimits {
+			txW := item.tx.Weight(w)
+			// Transaction weight greater than the limit. Drop the tx from the pool.
+			if txW > limit {
+				toRemove = append(toRemove, item)
+				return true
+			}
+		}
+
+		// Add the tx to the batch.
+		batch = append(batch, item.tx)
+		if uint32(len(batch)) >= limit {
+			return false
+		}
+		return true
+	})
+
+	// Remove transactions discovered to be too big to even fit the batch.
+	// This can happen if weight limits changed after the transaction was
+	// already set to be scheduled.
+	q.removeTxsLocked(toRemove)
+
+	return batch
+}
+
+// Implements api.TxPool.
 func (q *priorityQueue) GetKnownBatch(batch []hash.Hash) ([]*transaction.CheckedTransaction, map[hash.Hash]int) {
 	q.Lock()
 	defer q.Unlock()
